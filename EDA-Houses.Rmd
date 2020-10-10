@@ -1,0 +1,137 @@
+---
+title: "Exploratory data analysis of House Prices dataset"
+author: "Alexandra Kondekova"
+date: "10/10/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE, message = FALSE, warning = FALSE}
+library(dplyr)
+library(ggplot2)
+library(ggcorrplot)
+library(miscset)
+
+# data
+houses <- read.csv('train.csv')
+```
+First look at the data:
+```{r}
+str(houses)
+dim(houses)
+head(houses)
+houses$MSSubClass <- as.factor(houses$MSSubClass)
+```
+
+Let us look at the missing data:
+```{r}
+miss <- apply(houses, 2, is.na) %>% apply(., 2, sum)
+miss[miss > 0.5 * nrow(houses)]  # more than 50% of data is NA
+```
+However, in all cases, where NAs are more than 50% of the data, they do not mean missing values. They represent the 'no'/'none' categories in the variables. In the analysis, consider merging the categories to create binary variables (yes and no).
+
+The analysis of continuous (numerical) variables
+```{r}
+num.vars <- Filter(is.numeric, houses) %>% names()  # 37
+num.vars <- num.vars[-1]  # delete id
+
+summary(houses[num.vars])
+```
+We see that some variables have only few possible values (e.g. BsmtFullBath, BsmtHalfBath, FullBath, HalfBath,KitchenAbvGr, Fireplaces, MoSoldby). In further analysis, these variables may be considered as factors.
+
+Let us now look at the correlation structure of numerical variables.
+
+```{r, fig.align = "center"}
+corr <- cor(houses[num.vars]) %>% round(2)
+ggcorrplot(corr, type = 'lower')
+```
+
+We see high correlation between variables that are obviously linked together, e.g. GarageCars and GarageArea, YearBuild and YearRemodAd, etc.
+
+The analysis of categorical variables
+
+```{r}
+fac.vars <- Filter(is.factor, houses) %>% names ()  #44
+
+summary(houses[fac.vars])
+```
+
+```{r, echo = FALSE, fig.align = "center", fig.height=15, fig.width=15}
+ggplotGrid(ncol = 4,
+           lapply(fac.vars[1:22],
+                  function(col) {
+                    ggplot(houses, aes_string(col)) + geom_bar() + coord_flip()
+                  }))
+ggplotGrid(ncol = 4,
+           lapply(fac.vars[23:44],
+                  function(col) {
+                    ggplot(houses, aes_string(col)) + geom_bar() + coord_flip()
+                  }))
+```
+
+Variable Utilities is totally useless as it contains only two categories and in one of them only one observation. Condition2 might be also considered as useless - small numbers of observations in some categories. In further analysis, consider merging categories for some variables as some of them contain only few observations (e.q. quality).
+
+Let us look more closely at the target variable SalePrices.
+
+```{r}
+summary(houses$SalePrice)
+```
+
+This is the histogram and the estimation fo its density:
+```{r, echo = FALSE, fig.align = "center"}
+ggplot(houses, aes(x = SalePrice)) + 
+  geom_histogram(aes(y = ..density..), colour = "black", fill = "#E69F00") +
+  geom_density(alpha=.2, fill = "#999999")
+```
+
+We see that the distribution is skewed. 
+
+Now, we plot the boxplots for sale prices per categories of all categorical variables.
+
+```{r, echo = FALSE, fig.align = "center", fig.height=15, fig.width=15}
+ggplotGrid(ncol = 4,
+           lapply(fac.vars[1:22],
+                  function(col) {
+                    ggplot(houses, aes_string(x = col, y = "SalePrice")) + geom_boxplot()
+                  }))
+
+ggplotGrid(ncol = 4,
+           lapply(fac.vars[23:44],
+                  function(col) {
+                    ggplot(houses, aes_string(x = col, y = "SalePrice")) + geom_boxplot()
+                  }))
+```
+
+Now, we look at the correlation of sale prices with the rest of numerical variables.
+
+```{r}
+(cor.sp <- corr[, "SalePrice"])
+```
+```{r, echo = FALSE}
+cor.sp.high <- cor.sp[abs(cor.sp) >= 0.5 & !is.na(cor.sp)]
+```
+
+These are the variables where the correlation with sale prices is higher than 0.5. 
+```{r}
+cor.sp.high
+```
+```{r, echo = FALSE}
+cor.sp.high <- cor.sp.high[-length(cor.sp.high)] %>% names
+```
+
+Let us plot the highly correlated variables versus the sale prices.
+
+```{r, echo = FALSE, fig.align = "center", fig.height=15, fig.width=15}
+ggplotGrid(ncol = 2,
+           lapply(cor.sp.high,
+                  function(col) {
+                    ggplot(houses, aes_string(x = col, y = "SalePrice")) +
+                    geom_point()
+                  }))
+```
+
+We see some trends.
+
